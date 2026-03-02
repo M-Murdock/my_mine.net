@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyMine Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ore: #c8a84b;
+  --ore-dark: #8b6914;
+  --ore-light: #f0d080;
+  --coal: #1a1814;
+  --stone: #242018;
+  --panel: #1f1c18;
+  --slate: #3d3830;
+  --dust: #8a7f6e;
+  --quartz: #e8e0d0;
+  --danger: #c0392b;
+  --success: #27a060;
+  --bg: #141210;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--quartz);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* TOP BAR */
+header {
+  grid-column: 1 / -1;
+  background: #0d0b09;
+  border-bottom: 1px solid var(--ore-dark);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.5rem;
+}
+.header-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1rem; color: var(--ore);
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.header-title span { color: var(--dust); font-size: 0.75rem; }
+.header-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+/* SIDEBAR */
+aside {
+  background: var(--panel);
+  border-right: 1px solid var(--slate);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-head {
+  padding: 1rem;
+  border-bottom: 1px solid var(--slate);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-head-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dust);
+}
+.mine-list { overflow-y: auto; flex: 1; }
+.mine-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(61,56,48,0.5);
+  cursor: pointer; transition: background 0.15s;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem;
+}
+.mine-item:hover { background: rgba(200,168,75,0.05); }
+.mine-item.selected { background: rgba(200,168,75,0.1); border-left: 3px solid var(--ore); }
+.mine-item-name { font-weight: 500; color: var(--ore-light); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mine-item-loc { color: var(--dust); font-size: 0.72rem; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mine-item-del {
+  background: none; border: none; color: var(--dust); cursor: pointer;
+  font-size: 1rem; opacity: 0.5; transition: opacity 0.2s, color 0.2s;
+  flex-shrink: 0; padding: 0.2rem;
+}
+.mine-item-del:hover { opacity: 1; color: var(--danger); }
+
+/* MAIN FORM AREA */
+main {
+  overflow-y: auto;
+  padding: 1.5rem 2rem;
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--dust); text-align: center; gap: 1rem;
+}
+.empty-icon { font-size: 3rem; opacity: 0.3; }
+.empty-state p { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
+
+/* FORM */
+.form-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.1rem; color: var(--ore);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--slate);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.form-group.full { grid-column: 1 / -1; }
+label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dust);
+}
+input, select, textarea {
+  background: var(--stone);
+  border: 1px solid var(--slate);
+  color: var(--quartz);
+  padding: 0.55rem 0.75rem;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.88rem;
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--ore-dark); }
+input::placeholder, textarea::placeholder { color: var(--dust); opacity: 0.7; }
+select option { background: var(--stone); }
+textarea { resize: vertical; line-height: 1.6; }
+
+.section-divider {
+  grid-column: 1 / -1;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ore-dark); padding: 0.25rem 0;
+  border-top: 1px solid var(--slate); margin-top: 0.5rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.section-divider::after { content: ''; flex: 1; height: 1px; background: var(--slate); }
+
+/* PHOTOS */
+.photos-area { margin-bottom: 1.5rem; }
+.photos-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dust); margin-bottom: 0.75rem;
+}
+.photo-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
+.photo-row {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 0.5rem; align-items: center;
+}
+.photo-row input { font-size: 0.82rem; }
+.photo-row-del {
+  background: none; border: 1px solid var(--slate); color: var(--dust);
+  width: 32px; height: 32px; cursor: pointer; border-radius: 2px;
+  font-size: 0.85rem; transition: color 0.2s, border-color 0.2s;
+}
+.photo-row-del:hover { color: var(--danger); border-color: var(--danger); }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.55rem 1.1rem; border-radius: 2px; cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem;
+  letter-spacing: 0.07em; font-weight: 500; border: none; transition: all 0.15s;
+  text-transform: uppercase;
+}
+.btn-primary { background: var(--ore-dark); color: var(--ore-light); }
+.btn-primary:hover { background: var(--ore); color: var(--coal); }
+.btn-ghost { background: transparent; color: var(--dust); border: 1px solid var(--slate); }
+.btn-ghost:hover { color: var(--quartz); border-color: var(--dust); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #32c070; }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-small { padding: 0.35rem 0.75rem; font-size: 0.7rem; }
+
+.form-actions {
+  display: flex; gap: 0.75rem; padding-top: 1rem;
+  border-top: 1px solid var(--slate);
+  flex-wrap: wrap;
+}
+
+/* EXPORT MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  display: none; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--panel); border: 1px solid var(--ore-dark);
+  border-radius: 4px; width: 90%; max-width: 860px; max-height: 85vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--slate);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-title { font-family: 'IBM Plex Mono', monospace; color: var(--ore); font-size: 0.9rem; letter-spacing: 0.08em; }
+.modal-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
+.modal-body textarea {
+  height: 400px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
+  line-height: 1.5; color: #aad4aa; background: #0d0b09; border-color: var(--slate);
+}
+.modal-footer {
+  padding: 1rem 1.5rem; border-top: 1px solid var(--slate);
+  display: flex; gap: 0.75rem; justify-content: flex-end;
+}
+.modal-instructions {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
+  color: var(--dust); line-height: 1.7; margin-bottom: 1rem;
+  background: rgba(200,168,75,0.05); border: 1px solid var(--ore-dark);
+  padding: 0.75rem 1rem; border-radius: 2px;
+}
+.modal-instructions code { color: var(--ore); }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  background: var(--success); color: #fff;
+  padding: 0.6rem 1.2rem; border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
+}
+.toast.show { opacity: 1; }
+
+/* IMPORT area */
+.import-area {
+  background: var(--stone); border: 1px dashed var(--slate);
+  padding: 1rem; border-radius: 2px; margin-bottom: 1rem;
+}
+.import-area textarea {
+  height: 120px; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem;
+  color: #aad4aa; background: #0d0b09;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    ⛏ MyMine Editor
+    <span>— mine database manager</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost btn-small" onclick="showImport()">⬆ Import JSON</button>
+    <button class="btn btn-success btn-small" onclick="showExport()">⬇ Export to mymine.html</button>
+  </div>
+</header>
+
+<aside>
+  <div class="sidebar-head">
+    <span class="sidebar-head-label">Mines (<span id="mine-count">0</span>)</span>
+    <button class="btn btn-primary btn-small" onclick="newMine()">+ Add Mine</button>
+  </div>
+  <div class="mine-list" id="mine-list"></div>
+</aside>
+
+<main id="main-area">
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">⛏</div>
+    <p>Select a mine to edit<br>or click + Add Mine</p>
+  </div>
+  <div id="form-area" style="display:none;">
+    <div class="form-title" id="form-title">Edit Mine</div>
+    <div class="form-grid" id="form-grid">
+
+      <div class="form-group">
+        <label>Mine Name *</label>
+        <input type="text" id="f-name" placeholder="e.g. Vulture Mine">
+      </div>
+      <div class="form-group">
+        <label>Subtitle / District</label>
+        <input type="text" id="f-subtitle" placeholder="e.g. Wickenburg District">
+      </div>
+
+      <div class="form-group">
+        <label>Location (City, State)</label>
+        <input type="text" id="f-location" placeholder="e.g. Wickenburg, AZ">
+      </div>
+      <div class="form-group">
+        <label>State (2-letter code)</label>
+        <input type="text" id="f-state" placeholder="AZ" maxlength="2">
+      </div>
+
+      <div class="section-divider">Mineral & History</div>
+
+      <div class="form-group">
+        <label>Primary Mineral</label>
+        <select id="f-mineral">
+          <option>Gold</option>
+          <option>Silver</option>
+          <option>Copper</option>
+          <option>Iron</option>
+          <option>Coal</option>
+          <option>Mercury</option>
+          <option>Lead</option>
+          <option>Zinc</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Operating Era</label>
+        <input type="text" id="f-era" placeholder="e.g. 1863–1942">
+      </div>
+
+      <div class="form-group">
+        <label>Max Depth (feet)</label>
+        <input type="number" id="f-depth" placeholder="e.g. 2400">
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="f-status">
+          <option>Open</option>
+          <option>Closed</option>
+          <option>Flooded</option>
+          <option>Collapsed</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Last Visited (YYYY-MM-DD)</label>
+        <input type="date" id="f-visited">
+      </div>
+
+      <div class="section-divider">GPS Coordinates</div>
+
+      <div class="form-group">
+        <label>Latitude</label>
+        <input type="number" id="f-lat" step="0.0001" placeholder="e.g. 33.7642">
+      </div>
+      <div class="form-group">
+        <label>Longitude</label>
+        <input type="number" id="f-lng" step="0.0001" placeholder="e.g. -112.9308">
+      </div>
+
+      <div class="section-divider">Content</div>
+
+      <div class="form-group full">
+        <label>Description (HTML allowed, use &lt;p&gt; tags)</label>
+        <textarea id="f-desc" rows="6" placeholder="<p>Write a detailed description of the mine here...</p>"></textarea>
+      </div>
+
+      <div class="form-group full">
+        <label>Field Notes / Access Info</label>
+        <textarea id="f-notes" rows="3" placeholder="Practical notes: parking, hazards, hours, tips..."></textarea>
+      </div>
+
+    </div>
+
+    <div class="photos-area">
+      <div class="photos-label">Photo Captions</div>
+      <div class="photo-rows" id="photo-rows"></div>
+      <button class="btn btn-ghost btn-small" onclick="addPhotoRow()">+ Add Photo</button>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveMine()">💾 Save Mine</button>
+      <button class="btn btn-ghost" onclick="clearForm()">✕ Cancel</button>
+      <button class="btn btn-danger btn-small" onclick="deleteCurrent()" id="delete-btn" style="margin-left:auto;">🗑 Delete Mine</button>
+    </div>
+  </div>
+</main>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">⬇ Export — Paste into mymine.html</span>
+      <button class="btn btn-ghost btn-small" onclick="closeModal('export-modal')">✕ Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-instructions">
+        1. Copy the code below.<br>
+        2. Open <code>mymine.html</code> in a text editor.<br>
+        3. Find the line that starts with <code>const mines = [</code><br>
+        4. Select from that line all the way to the matching <code>];</code> and replace it with what's below.
+      </div>
+      <textarea id="export-text" readonly onclick="this.select()"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="copyExport()">📋 Copy to Clipboard</button>
+      <button class="btn btn-ghost" onclick="closeModal('export-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">⬆ Import — Load existing mines array</span>
+      <button class="btn btn-ghost btn-small" onclick="closeModal('import-modal')">✕ Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-instructions">
+        Open <code>mymine.html</code> in a text editor, copy the entire <code>const mines = [...];</code> block, and paste it below. This will load your existing mines into the editor.
+      </div>
+      <div class="import-area">
+        <textarea id="import-text" placeholder="Paste const mines = [...]; here..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="doImport()">⬆ Load Mines</button>
+      <button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ──────────────────────────────────────────────────────
+let mines = [
+  {
+    id: 1,
+    name: "Almaden Quicksilver Mine",
+    subtitle: "New Almaden District",
+    location: "New Almaden, CA",
+    state: "CA",
+    mineral: "Mercury",
+    era: "1845–1976",
+    depth: 2400,
+    status: "Closed",
+    visited: "2023-08-12",
+    lat: 37.1741, lng: -121.8194,
+    desc: `<p>The New Almaden Quicksilver Mine is one of the oldest and most historically significant mines in the United States. Spanish missionaries first noted the red cinnabar deposits here in the 1820s, but commercial extraction began in earnest in 1845 under Mexican land grant holders.</p><p>The mine's mercury (quicksilver) was essential to gold and silver processing in California and Nevada, fueling the Gold Rush era economy. At its peak in the 1870s, the mine employed over 1,800 men across a sprawling underground network stretching over 100 miles of tunnels on multiple levels.</p>`,
+    notes: "Park is open during daylight hours. No underground access permitted — exterior features and mining town remnants are the main attraction.",
+    photos: [{ caption: "Hacienda adit portal entrance", placeholder: "⛏" }]
+  },
+  {
+    id: 2,
+    name: "Vulture Mine",
+    subtitle: "Wickenburg District",
+    location: "Wickenburg, AZ",
+    state: "AZ",
+    mineral: "Gold",
+    era: "1863–1942",
+    depth: 300,
+    status: "Open",
+    visited: "2022-03-05",
+    lat: 33.7642, lng: -112.9308,
+    desc: `<p>Henry Wickenburg discovered gold here in 1863, founding what became Arizona Territory's most productive gold mine.</p>`,
+    notes: "Small admission fee. Open Thursday–Monday.",
+    photos: [{ caption: "Main shaft collar and headframe", placeholder: "🏗" }]
+  }
+];
+
+let selectedId = null;
+let nextId = Math.max(...mines.map(m => m.id)) + 1;
+
+// ─── RENDER LIST ─────────────────────────────────────────────────
+function renderList() {
+  const el = document.getElementById('mine-list');
+  document.getElementById('mine-count').textContent = mines.length;
+  el.innerHTML = '';
+  [...mines].sort((a,b) => a.name.localeCompare(b.name)).forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'mine-item' + (m.id === selectedId ? ' selected' : '');
+    div.innerHTML = `
+      <div style="overflow:hidden;">
+        <div class="mine-item-name">${m.name}</div>
+        <div class="mine-item-loc">${m.location}</div>
+      </div>
+      <button class="mine-item-del" title="Delete" onclick="event.stopPropagation(); confirmDelete(${m.id})">✕</button>
+    `;
+    div.onclick = () => selectMine(m.id);
+    el.appendChild(div);
+  });
+}
+
+// ─── SELECT / FORM ───────────────────────────────────────────────
+function selectMine(id) {
+  selectedId = id;
+  const m = mines.find(x => x.id === id);
+  if (!m) return;
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('form-area').style.display = 'block';
+  document.getElementById('form-title').textContent = `Editing: ${m.name}`;
+  document.getElementById('delete-btn').style.display = '';
+
+  document.getElementById('f-name').value = m.name || '';
+  document.getElementById('f-subtitle').value = m.subtitle || '';
+  document.getElementById('f-location').value = m.location || '';
+  document.getElementById('f-state').value = m.state || '';
+  document.getElementById('f-mineral').value = m.mineral || 'Gold';
+  document.getElementById('f-era').value = m.era || '';
+  document.getElementById('f-depth').value = m.depth || '';
+  document.getElementById('f-status').value = m.status || 'Open';
+  document.getElementById('f-visited').value = m.visited || '';
+  document.getElementById('f-lat').value = m.lat || '';
+  document.getElementById('f-lng').value = m.lng || '';
+  document.getElementById('f-desc').value = m.desc || '';
+  document.getElementById('f-notes').value = m.notes || '';
+
+  renderPhotoRows(m.photos || []);
+  renderList();
+}
+
+function newMine() {
+  selectedId = null;
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('form-area').style.display = 'block';
+  document.getElementById('form-title').textContent = 'New Mine';
+  document.getElementById('delete-btn').style.display = 'none';
+
+  ['f-name','f-subtitle','f-location','f-state','f-era','f-visited','f-desc','f-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-mineral').value = 'Gold';
+  document.getElementById('f-status').value = 'Open';
+  document.getElementById('f-depth').value = '';
+  document.getElementById('f-lat').value = '';
+  document.getElementById('f-lng').value = '';
+  renderPhotoRows([]);
+}
+
+function clearForm() {
+  selectedId = null;
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('form-area').style.display = 'none';
+  renderList();
+}
+
+// ─── SAVE ────────────────────────────────────────────────────────
+function saveMine() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('Mine name is required.'); return; }
+
+  const photos = [...document.querySelectorAll('.photo-caption-input')]
+    .map(inp => ({ caption: inp.value.trim(), placeholder: '⛏' }))
+    .filter(p => p.caption);
+
+  const data = {
+    id: selectedId || nextId++,
+    name,
+    subtitle: document.getElementById('f-subtitle').value.trim(),
+    location: document.getElementById('f-location').value.trim(),
+    state: document.getElementById('f-state').value.trim().toUpperCase(),
+    mineral: document.getElementById('f-mineral').value,
+    era: document.getElementById('f-era').value.trim(),
+    depth: parseFloat(document.getElementById('f-depth').value) || 0,
+    status: document.getElementById('f-status').value,
+    visited: document.getElementById('f-visited').value,
+    lat: parseFloat(document.getElementById('f-lat').value) || 0,
+    lng: parseFloat(document.getElementById('f-lng').value) || 0,
+    desc: document.getElementById('f-desc').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    photos
+  };
+
+  const idx = mines.findIndex(m => m.id === data.id);
+  if (idx >= 0) mines[idx] = data;
+  else mines.push(data);
+
+  selectedId = data.id;
+  renderList();
+  showToast('Mine saved ✓');
+  document.getElementById('form-title').textContent = `Editing: ${name}`;
+  document.getElementById('delete-btn').style.display = '';
+}
+
+// ─── DELETE ──────────────────────────────────────────────────────
+function confirmDelete(id) {
+  const m = mines.find(x => x.id === id);
+  if (!m) return;
+  if (!confirm(`Delete "${m.name}"? This cannot be undone.`)) return;
+  mines = mines.filter(x => x.id !== id);
+  if (selectedId === id) clearForm();
+  else renderList();
+  showToast('Mine deleted');
+}
+
+function deleteCurrent() {
+  if (selectedId) confirmDelete(selectedId);
+}
+
+// ─── PHOTOS ──────────────────────────────────────────────────────
+function renderPhotoRows(photos) {
+  const container = document.getElementById('photo-rows');
+  container.innerHTML = '';
+  (photos || []).forEach(p => addPhotoRow(p.caption));
+}
+
+function addPhotoRow(caption = '') {
+  const container = document.getElementById('photo-rows');
+  const row = document.createElement('div');
+  row.className = 'photo-row';
+  row.innerHTML = `
+    <input class="photo-caption-input" type="text" value="${caption}" placeholder="Photo caption (e.g. Main shaft entrance)">
+    <button class="photo-row-del" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────
+function showExport() {
+  const json = buildExportString();
+  document.getElementById('export-text').value = json;
+  document.getElementById('export-modal').classList.add('open');
+}
+
+function buildExportString() {
+  const lines = ['const mines = ['];
+  mines.forEach((m, i) => {
+    const comma = i < mines.length - 1 ? ',' : '';
+    // Escape backticks in desc/notes
+    const desc = (m.desc || '').replace(/`/g, '\\`');
+    const notes = (m.notes || '').replace(/`/g, '\\`');
+    const photos = JSON.stringify(m.photos || [], null, 4)
+      .split('\n').map((l, li) => li === 0 ? l : '    ' + l).join('\n');
+    lines.push(`  {`);
+    lines.push(`    id: ${m.id},`);
+    lines.push(`    name: ${JSON.stringify(m.name)},`);
+    lines.push(`    subtitle: ${JSON.stringify(m.subtitle || '')},`);
+    lines.push(`    location: ${JSON.stringify(m.location || '')},`);
+    lines.push(`    state: ${JSON.stringify(m.state || '')},`);
+    lines.push(`    mineral: ${JSON.stringify(m.mineral || 'Gold')},`);
+    lines.push(`    era: ${JSON.stringify(m.era || '')},`);
+    lines.push(`    depth: ${m.depth || 0},`);
+    lines.push(`    status: ${JSON.stringify(m.status || 'Open')},`);
+    lines.push(`    visited: ${JSON.stringify(m.visited || '')},`);
+    lines.push(`    lat: ${m.lat || 0}, lng: ${m.lng || 0},`);
+    lines.push(`    desc: \`${desc}\`,`);
+    lines.push(`    notes: ${JSON.stringify(notes)},`);
+    lines.push(`    photos: ${photos}`);
+    lines.push(`  }${comma}`);
+  });
+  lines.push('];');
+  return lines.join('\n');
+}
+
+function copyExport() {
+  const ta = document.getElementById('export-text');
+  ta.select();
+  document.execCommand('copy');
+  showToast('Copied to clipboard ✓');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// ─── IMPORT ──────────────────────────────────────────────────────
+function showImport() {
+  document.getElementById('import-text').value = '';
+  document.getElementById('import-modal').classList.add('open');
+}
+
+function doImport() {
+  let raw = document.getElementById('import-text').value.trim();
+  // Strip "const mines = " prefix and trailing semicolon
+  raw = raw.replace(/^const\s+mines\s*=\s*/, '').replace(/;?\s*$/, '');
+  try {
+    // Use Function() to safely evaluate the JS array literal
+    const parsed = (new Function('return ' + raw))();
+    if (!Array.isArray(parsed)) throw new Error('Not an array');
+    mines = parsed;
+    nextId = Math.max(...mines.map(m => m.id || 0), 0) + 1;
+    selectedId = null;
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('form-area').style.display = 'none';
+    renderList();
+    closeModal('import-modal');
+    showToast(`Loaded ${mines.length} mines ✓`);
+  } catch(e) {
+    alert('Could not parse mines data. Make sure you copied the entire const mines = [...]; block.\n\nError: ' + e.message);
+  }
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+renderList();
+</script>
+</body>
+</html>
