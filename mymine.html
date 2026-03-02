@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyMine.net — Mine Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --ore: #c8a84b;
+    --ore-dark: #8b6914;
+    --ore-light: #f0d080;
+    --coal: #1a1814;
+    --stone: #2c2820;
+    --slate: #3d3830;
+    --dust: #8a7f6e;
+    --paper: #f5f0e8;
+    --shaft: #0d0b09;
+    --rust: #8b3a1e;
+    --malachite: #2d6b4a;
+    --quartz: #e8e0d0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--coal);
+    color: var(--quartz);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    background-image: 
+      radial-gradient(ellipse at 20% 50%, rgba(200,168,75,0.03) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%231a1814'/%3E%3Ccircle cx='1' cy='1' r='0.5' fill='%23ffffff08'/%3E%3C/svg%3E");
+  }
+
+  /* NAV */
+  nav {
+    background: var(--shaft);
+    border-bottom: 1px solid var(--ore-dark);
+    position: sticky; top: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem;
+    height: 64px;
+  }
+  .nav-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--ore);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .nav-logo span { color: var(--quartz); font-size: 0.9rem; font-family: 'IBM Plex Mono', monospace; display: block; font-weight: 400; letter-spacing: 0.1em; }
+  .nav-links { display: flex; gap: 2rem; }
+  .nav-links a {
+    color: var(--dust); text-decoration: none; font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; transition: color 0.2s;
+  }
+  .nav-links a:hover, .nav-links a.active { color: var(--ore); }
+
+  /* HERO */
+  .hero {
+    position: relative; overflow: hidden;
+    padding: 5rem 2rem 4rem;
+    background: linear-gradient(180deg, var(--shaft) 0%, var(--stone) 100%);
+    border-bottom: 1px solid var(--slate);
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M0 30 L30 0 L60 30 L30 60Z' fill='none' stroke='%23c8a84b08' stroke-width='1'/%3E%3C/svg%3E");
+  }
+  .hero-inner { max-width: 900px; margin: 0 auto; position: relative; }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 900;
+    color: var(--ore);
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 80px rgba(200,168,75,0.2);
+  }
+  .hero h1 em { color: var(--quartz); font-style: normal; }
+  .hero-sub {
+    margin-top: 1.5rem;
+    color: var(--dust);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .hero-stats {
+    display: flex; gap: 3rem; margin-top: 2.5rem; flex-wrap: wrap;
+  }
+  .stat { }
+  .stat-num { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: var(--ore); line-height: 1; }
+  .stat-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--dust); letter-spacing: 0.12em; text-transform: uppercase; }
+
+  /* MAIN CONTENT */
+  .main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+  /* PAGE SECTIONS */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* SECTION HEADER */
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    color: var(--ore);
+    margin-bottom: 0.5rem;
+  }
+  .section-line {
+    height: 1px; background: linear-gradient(90deg, var(--ore-dark), transparent);
+    margin-bottom: 2rem;
+  }
+
+  /* SEARCH BAR */
+  .controls {
+    display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;
+  }
+  .search-box {
+    flex: 1; min-width: 200px;
+    background: var(--stone); border: 1px solid var(--slate);
+    border-radius: 2px; padding: 0.6rem 1rem;
+    color: var(--quartz); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--ore-dark); }
+  .search-box::placeholder { color: var(--dust); }
+
+  select.filter-sel {
+    background: var(--stone); border: 1px solid var(--slate);
+    color: var(--quartz); padding: 0.6rem 1rem;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+
+  /* TABLE */
+  .mine-table-wrap { overflow-x: auto; }
+  table.mine-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .mine-table thead th {
+    background: var(--stone); border-bottom: 2px solid var(--ore-dark);
+    padding: 0.8rem 1rem; text-align: left;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--dust);
+    cursor: pointer; user-select: none; white-space: nowrap;
+    transition: color 0.2s;
+  }
+  .mine-table thead th:hover { color: var(--ore); }
+  .mine-table thead th.sort-asc::after { content: ' ▲'; color: var(--ore); }
+  .mine-table thead th.sort-desc::after { content: ' ▼'; color: var(--ore); }
+  .mine-table tbody tr {
+    border-bottom: 1px solid var(--slate);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .mine-table tbody tr:hover { background: rgba(200,168,75,0.05); }
+  .mine-table tbody td { padding: 0.85rem 1rem; vertical-align: middle; }
+  .mine-name-cell {
+    font-family: 'IBM Plex Sans', sans-serif; font-weight: 500;
+    color: var(--ore-light);
+  }
+  .mine-name-cell small { display: block; color: var(--dust); font-size: 0.78rem; font-weight: 300; margin-top: 0.1rem; }
+  .badge {
+    display: inline-block; padding: 0.2rem 0.6rem;
+    border-radius: 2px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem; letter-spacing: 0.08em; font-weight: 500;
+  }
+  .badge-gold { background: rgba(200,168,75,0.15); color: var(--ore); border: 1px solid var(--ore-dark); }
+  .badge-silver { background: rgba(200,200,220,0.1); color: #b0b8cc; border: 1px solid #556; }
+  .badge-copper { background: rgba(180,100,60,0.15); color: #d4805a; border: 1px solid #7a3a1a; }
+  .badge-iron { background: rgba(140,80,40,0.1); color: var(--dust); border: 1px solid var(--slate); }
+  .badge-coal { background: rgba(255,255,255,0.05); color: #888; border: 1px solid #333; }
+  .badge-mixed { background: rgba(45,107,74,0.15); color: #6db890; border: 1px solid #2d6b4a; }
+  .badge-lead { background: rgba(100,100,130,0.15); color: #9090b0; border: 1px solid #445; }
+  .badge-zinc { background: rgba(150,200,150,0.1); color: #90c890; border: 1px solid #3a6a3a; }
+  .badge-open { background: rgba(45,107,74,0.15); color: #6db890; }
+  .badge-closed { background: rgba(139,58,30,0.2); color: #d4805a; }
+  .badge-flooded { background: rgba(30,80,139,0.2); color: #70a0d4; }
+  .badge-collapsed { background: rgba(100,80,40,0.2); color: #b09060; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; color: var(--dust); }
+
+  /* MINE DETAIL PAGE */
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    color: var(--dust); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+    cursor: pointer; margin-bottom: 2rem; letter-spacing: 0.08em;
+    border: none; background: none; transition: color 0.2s;
+  }
+  .back-btn:hover { color: var(--ore); }
+
+  .mine-detail-header {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 2rem; align-items: start; margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+  .mine-detail-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    color: var(--ore);
+    line-height: 1.1;
+  }
+  .mine-detail-meta {
+    display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; align-items: center;
+  }
+  .mine-detail-sidebar {
+    min-width: 220px;
+    background: var(--stone); border: 1px solid var(--slate); border-radius: 2px;
+    padding: 1.5rem;
+  }
+  .sidebar-row { margin-bottom: 1.2rem; }
+  .sidebar-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--dust); letter-spacing: 0.1em; text-transform: uppercase; }
+  .sidebar-val { font-size: 0.95rem; color: var(--quartz); margin-top: 0.2rem; }
+
+  .mine-desc {
+    line-height: 1.8; color: #c8c0b0; font-size: 0.95rem; margin-bottom: 2rem;
+    max-width: 760px;
+  }
+  .mine-desc p { margin-bottom: 1rem; }
+
+  .photo-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem; margin-bottom: 2.5rem;
+  }
+  .photo-card {
+    background: var(--stone); border: 1px solid var(--slate); border-radius: 2px;
+    overflow: hidden; position: relative;
+  }
+  .photo-card img { width: 100%; height: 200px; object-fit: cover; display: block; filter: sepia(20%) contrast(110%); }
+  .photo-caption {
+    padding: 0.6rem 0.8rem; font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem; color: var(--dust); letter-spacing: 0.05em;
+  }
+  .photo-placeholder {
+    width: 100%; height: 200px;
+    background: linear-gradient(135deg, var(--stone) 0%, var(--slate) 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--dust); font-size: 2rem;
+  }
+
+  .detail-map { height: 300px; border: 1px solid var(--slate); border-radius: 2px; margin-bottom: 2rem; }
+
+  /* MAP PAGE */
+  #map-container { height: 600px; border: 1px solid var(--slate); border-radius: 2px; }
+
+  .notes-box {
+    background: var(--stone); border-left: 3px solid var(--ore-dark);
+    padding: 1.2rem 1.5rem; margin-bottom: 2rem; border-radius: 0 2px 2px 0;
+    font-size: 0.9rem; line-height: 1.7; color: #b0a890;
+  }
+  .notes-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--ore-dark); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem; }
+
+  .result-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--dust); margin-bottom: 1rem; }
+
+  /* FOOTER */
+  footer {
+    text-align: center; padding: 3rem 2rem;
+    border-top: 1px solid var(--slate); margin-top: 4rem;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--dust);
+  }
+  footer span { color: var(--ore); }
+
+  @media (max-width: 700px) {
+    .mine-detail-header { grid-template-columns: 1fr; }
+    nav { padding: 0 1rem; }
+    .hero { padding: 3rem 1rem 2rem; }
+    .main { padding: 1.5rem 1rem; }
+    .hero-stats { gap: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo" onclick="showPage('home')">
+    MyMine<span>.net</span>
+  </div>
+  <div class="nav-links">
+    <a onclick="showPage('home')" id="nav-home" class="active">Mines</a>
+    <a onclick="showPage('map')" id="nav-map">Map</a>
+    <a onclick="showPage('about')" id="nav-about">About</a>
+  </div>
+</nav>
+
+<!-- HOME PAGE -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-inner">
+      <h1>My<em>Mine</em></h1>
+      <div class="hero-sub">⛏ Personal Mine Exploration Index</div>
+      <div class="hero-stats">
+        <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Mines Logged</div></div>
+        <div class="stat"><div class="stat-num" id="stat-states">—</div><div class="stat-label">States</div></div>
+        <div class="stat"><div class="stat-num" id="stat-types">—</div><div class="stat-label">Mineral Types</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="section-title">Mine Index</div>
+    <div class="section-line"></div>
+
+    <div class="controls">
+      <input class="search-box" type="text" id="search-input" placeholder="Search by name, location, mineral…" oninput="renderTable()">
+      <select class="filter-sel" id="filter-mineral" onchange="renderTable()">
+        <option value="">All Minerals</option>
+      </select>
+      <select class="filter-sel" id="filter-state" onchange="renderTable()">
+        <option value="">All States</option>
+      </select>
+      <select class="filter-sel" id="filter-status" onchange="renderTable()">
+        <option value="">All Status</option>
+        <option value="Open">Open</option>
+        <option value="Closed">Closed</option>
+        <option value="Flooded">Flooded</option>
+        <option value="Collapsed">Collapsed</option>
+      </select>
+    </div>
+
+    <div class="result-count" id="result-count"></div>
+
+    <div class="mine-table-wrap">
+      <table class="mine-table" id="mine-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('name')">Mine Name</th>
+            <th onclick="sortBy('location')">Location</th>
+            <th onclick="sortBy('state')">State</th>
+            <th onclick="sortBy('mineral')">Mineral</th>
+            <th onclick="sortBy('era')">Era</th>
+            <th onclick="sortBy('depth')">Depth (ft)</th>
+            <th onclick="sortBy('status')">Status</th>
+            <th onclick="sortBy('visited')">Last Visited</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MAP PAGE -->
+<div class="page" id="page-map">
+  <div class="hero" style="padding: 3rem 2rem 2rem;">
+    <div class="hero-inner">
+      <h1 style="font-size:3rem;">Mine <em>Map</em></h1>
+      <div class="hero-sub">All Trailheads & Portal Locations</div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="section-title">Trailhead Map</div>
+    <div class="section-line"></div>
+    <div id="map-container"></div>
+    <p style="font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:var(--dust); margin-top:1rem;">
+      ◆ Click any marker for mine details. Gold markers = visited, grey = not yet visited.
+    </p>
+  </div>
+</div>
+
+<!-- DETAIL PAGE -->
+<div class="page" id="page-detail">
+  <div class="main" style="max-width:1100px;">
+    <button class="back-btn" onclick="showPage('home')">← Back to Mine Index</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- ABOUT PAGE -->
+<div class="page" id="page-about">
+  <div class="hero" style="padding: 3rem 2rem 2rem;">
+    <div class="hero-inner">
+      <h1 style="font-size:3rem;">About <em>This Site</em></h1>
+    </div>
+  </div>
+  <div class="main" style="max-width:760px;">
+    <div class="section-title">About MyMine.net</div>
+    <div class="section-line"></div>
+    <div class="mine-desc">
+      <p>Welcome to MyMine.net — a personal index of mine explorations, underground adventures, and historic mineral sites. This site is inspired by the great regional hiking databases and adapted for the world beneath the surface.</p>
+      <p>Each entry includes GPS coordinates for the trailhead or mine portal, notes on access and conditions, historical context, and personal observations from visits. Photos are added as available.</p>
+      <p>Mine exploration carries real hazards including poor air quality, unstable ground, flooding, and structural collapse. Always research conditions before entering any mine, bring proper equipment, and never explore alone.</p>
+      <p>This is a living database — updated as new mines are visited and new information is gathered.</p>
+    </div>
+    <div class="notes-box">
+      <div class="notes-label">⚠ Safety Disclaimer</div>
+      Abandoned mines are dangerous. This site documents personal visits for informational purposes only. Do not trespass. Check local regulations. Always tell someone where you're going.
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>MyMine.net</span> — Personal Mine Exploration Database · Built with passion for the underground
+</footer>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────
+const mines = [
+  {
+    id: 1,
+    name: "Almaden Quicksilver Mine",
+    subtitle: "New Almaden District",
+    location: "New Almaden, CA",
+    state: "CA",
+    mineral: "Mercury",
+    era: "1845–1976",
+    depth: 2400,
+    status: "Closed",
+    visited: "2023-08-12",
+    lat: 37.1741, lng: -121.8194,
+    desc: `<p>The New Almaden Quicksilver Mine is one of the oldest and most historically significant mines in the United States. Spanish missionaries first noted the red cinnabar deposits here in the 1820s, but commercial extraction began in earnest in 1845 under Mexican land grant holders.</p><p>The mine's mercury (quicksilver) was essential to gold and silver processing in California and Nevada, fueling the Gold Rush era economy. At its peak in the 1870s, the mine employed over 1,800 men across a sprawling underground network stretching over 100 miles of tunnels on multiple levels.</p><p>The Mine Hill area features several accessible tunnels and adit portals, now part of the Almaden Quicksilver County Park. The Hacienda portal remains a dramatic iron-gated entrance with significant historical character.</p>`,
+    notes: "Park is open during daylight hours. No underground access permitted — exterior features and mining town remnants are the main attraction. Bring water; trails can be hot in summer.",
+    photos: [
+      { caption: "Hacienda adit portal entrance", placeholder: "⛏" },
+      { caption: "Mine Hill overlook", placeholder: "🗻" },
+      { caption: "Cinnabar outcrop near trail", placeholder: "🪨" }
+    ]
+  },
+  {
+    id: 2,
+    name: "Vulture Mine",
+    subtitle: "Wickenburg District",
+    location: "Wickenburg, AZ",
+    state: "AZ",
+    mineral: "Gold",
+    era: "1863–1942",
+    depth: 300,
+    status: "Open",
+    visited: "2022-03-05",
+    lat: 33.7642, lng: -112.9308,
+    desc: `<p>Henry Wickenburg discovered gold here in 1863, founding what became Arizona Territory's most productive gold mine. The Vulture Mine produced an estimated $200 million in gold over its lifetime — a staggering figure for the era.</p><p>The mine was plagued by "high-grading," the practice of miners secretly pocketing rich ore specimens. Wickenburg himself reportedly hanged 18 men from the old "hanging tree" — a large mesquite that still stands on the property — for theft.</p><p>Today the site operates as a self-guided ghost town tour with 14 original structures, including the assay office, bunkhouses, and the blacksmith shop. Several open adits are visible around the property, and the main shaft collar remains intact.</p>`,
+    notes: "Small admission fee. Open Thursday–Monday. The main shaft is fenced but visible. Excellent example of an intact Arizona mining camp. Watch for rattlesnakes in spring.",
+    photos: [
+      { caption: "Main shaft collar and headframe", placeholder: "🏗" },
+      { caption: "Assay office interior", placeholder: "🏚" },
+      { caption: "The hanging tree, mesquite grove", placeholder: "🌵" }
+    ]
+  },
+  {
+    id: 3,
+    name: "Quincy Mine",
+    subtitle: "Keweenaw Copper Country",
+    location: "Hancock, MI",
+    state: "MI",
+    mineral: "Copper",
+    era: "1846–1967",
+    depth: 9260,
+    status: "Open",
+    visited: "2021-07-20",
+    lat: 47.1342, lng: -88.5781,
+    desc: `<p>Known as "Old Reliable" for its consistent dividends to shareholders, the Quincy Mine was one of the world's deepest copper mines in its day — its No. 2 shaft reached an astonishing 9,260 feet below the surface at an angle following the 42° dip of the copper-bearing lode.</p><p>The Keweenaw Peninsula copper district produced over 10 billion pounds of refined copper between 1845 and 1968, much of it in native (pure metallic) form rather than ore requiring smelting. Quincy was a leader in this distinctive "native copper" mining tradition.</p><p>The Quincy Mine Hoist Association now operates underground tours using the original No. 2 shaft incline hoist — one of the largest steam hoisting engines ever built. The surface structures, including the massive Nordberg hoist house, are National Historic Landmarks.`,
+    notes: "Guided tours available Memorial Day through October. Hard hats and lights provided. The tram ride down the hillside to the adit is itself an experience. Budget 2–3 hours.",
+    photos: [
+      { caption: "Nordberg hoist engine house", placeholder: "🏭" },
+      { caption: "No. 2 shaft collar underground", placeholder: "⚫" },
+      { caption: "Native copper specimen from waste rock", placeholder: "🟤" }
+    ]
+  },
+  {
+    id: 4,
+    name: "Mayflower Gold Mine",
+    subtitle: "Black Hills District",
+    location: "Lead, SD",
+    state: "SD",
+    mineral: "Gold",
+    era: "1876–2001",
+    depth: 8000,
+    status: "Closed",
+    visited: "2023-06-14",
+    lat: 44.3528, lng: -103.7651,
+    desc: `<p>The Homestead Mine (often called the Mayflower in its later years after a major shaft) was the largest and deepest gold mine in the Western Hemisphere for most of the 20th century. The mine produced over 40 million troy ounces of gold before closing in 2002 after falling gold prices made operations uneconomical.</p><p>The underground workings extend 8,000 feet below the surface and sprawl across a vast network of shafts, drifts, and stopes that would take a lifetime to fully explore. The mine is now repurposed as the Sanford Underground Research Facility (SURF), hosting cutting-edge physics experiments including dark matter detectors that require the rock overburden to shield them from cosmic rays.</p>`,
+    notes: "Surface tours available through Black Hills Mining Museum. Limited underground tours offered through SURF. The open pit from later operations is visible from highway overlooks.",
+    photos: [
+      { caption: "Open cut and headframe view", placeholder: "⛰" },
+      { caption: "Historic mill complex", placeholder: "🏭" }
+    ]
+  },
+  {
+    id: 5,
+    name: "Empire Mine",
+    subtitle: "Nevada City – Grass Valley District",
+    location: "Grass Valley, CA",
+    state: "CA",
+    mineral: "Gold",
+    era: "1850–1956",
+    depth: 5912,
+    status: "Open",
+    visited: "2022-11-08",
+    lat: 39.2182, lng: -121.0561,
+    desc: `<p>The Empire Mine is California's oldest, largest, deepest, longest, and richest gold mine, operating continuously from 1850 to 1956 and producing an estimated 5.8 million troy ounces of gold from 367 miles of underground workings. The hard rock quartz lode gold deposits here define the classic Mother Lode geology.</p><p>William Bourn Jr. transformed the working mine into something architecturally remarkable in the 1890s, hiring Willis Polk (San Francisco's foremost architect) to design the estate buildings in English Cornish cottage style. The contrast between the industrial mine works and the refined stone manor house is extraordinary.</p>`,
+    notes: "Now a California State Historic Park. Open year-round. Underground viewing area shows the top of the main shaft. The mine yard with original machinery and the Bourn Cottage garden are highlights.",
+    photos: [
+      { caption: "Bourn Cottage and gardens", placeholder: "🌿" },
+      { caption: "Main shaft collar and headframe", placeholder: "🏗" },
+      { caption: "Gold-bearing quartz vein in outcrop", placeholder: "🪨" }
+    ]
+  },
+  {
+    id: 6,
+    name: "Galena Creek Mine",
+    subtitle: "Virginia City District",
+    location: "Virginia City, NV",
+    state: "NV",
+    mineral: "Silver",
+    era: "1859–1898",
+    depth: 1650,
+    status: "Collapsed",
+    visited: "2024-02-18",
+    lat: 39.3097, lng: -119.6477,
+    desc: `<p>One of dozens of silver mines that defined the Comstock Lode, the Galena Creek workings were notable for extraordinarily rich silver chloride ore discovered in the 1860s "bonanza" period. Unlike the larger Consolidated Virginia and California mines, Galena Creek was a smaller, wildcat operation that produced fabulously for three years before the ore body was exhausted.</p><p>The site today shows extensive surface evidence of the mining era: collapsed surface workings, waste dumps with galena (lead sulfide) and quartz float, and the ghost of a mill foundation above the canyon. Two adits are partially open but structurally suspect — entry is not advised.</p>`,
+    notes: "Access via old wagon road above Virginia City. Four-wheel drive recommended in wet weather. Several other mine sites visible from the ridge. Excellent mineralized waste rock collecting on dumps.",
+    photos: [
+      { caption: "Collapsed adit entrance, east face", placeholder: "💀" },
+      { caption: "Waste rock dump with galena specimens", placeholder: "🪨" }
+    ]
+  },
+  {
+    id: 7,
+    name: "Copper Queen Mine",
+    subtitle: "Bisbee District",
+    location: "Bisbee, AZ",
+    state: "AZ",
+    mineral: "Copper",
+    era: "1877–1975",
+    depth: 2000,
+    status: "Open",
+    visited: "2023-04-22",
+    lat: 31.4479, lng: -109.9281,
+    desc: `<p>The Copper Queen Mine put Bisbee on the map and kept it there for nearly a century. The mine was acquired by Phelps Dodge in 1881 and became one of the company's crown jewels, ultimately producing over 8 billion pounds of copper along with significant gold, silver, and lead byproducts.</p><p>The famous Lavender Pit open cut (adjacent but a separate operation) is visible from much of Bisbee and represents some 380 million tons of material removed between 1954 and 1974. The underground Copper Queen Mine itself operated on a system of multiple shafts and levels reaching 2,000 feet.</p>`,
+    notes: "The mine tour is a must-do. Excellent guides (many are retired miners). Hard hats, lights, and yellow slickers provided — the mine is wet in places. Book ahead in spring/fall.",
+    photos: [
+      { caption: "Copper Queen mine entrance", placeholder: "🟠" },
+      { caption: "Underground drift at the 200 level", placeholder: "🕳" },
+      { caption: "Malachite specimen from waste dump", placeholder: "🟢" }
+    ]
+  },
+  {
+    id: 8,
+    name: "Argo Gold Mill & Tunnel",
+    subtitle: "Central City – Black Hawk District",
+    location: "Idaho Springs, CO",
+    state: "CO",
+    mineral: "Gold",
+    era: "1913–1943",
+    depth: 4.2,
+    status: "Open",
+    visited: "2021-09-03",
+    lat: 39.7417, lng: -105.5197,
+    desc: `<p>The Argo Tunnel is a drainage and haulage tunnel driven nearly 5 miles into the mountains from Idaho Springs to drain the mines of the Central City/Black Hawk district. At the time of completion in 1913 it was the longest mine tunnel in the world.</p><p>The accompanying Argo Gold Mill processed ore from mines throughout the district. A catastrophic flood struck in 1943 when the tunnel intersected an old sealed mine that was under tremendous water pressure — the resulting inrush killed four miners and permanently closed the tunnel to mining operations.</p>`,
+    notes: "Open as a tourist attraction with gold panning available. Tunnel tour goes a short distance inside. The five-story mill building is fascinating — many original pieces of equipment still in place.",
+    photos: [
+      { caption: "Argo mill five-story exterior", placeholder: "🏭" },
+      { caption: "Mill interior with ore stamps", placeholder: "⚙️" }
+    ]
+  },
+  {
+    id: 9,
+    name: "Coeur d'Alene Silver Belt",
+    subtitle: "Bunker Hill Mine Area",
+    location: "Kellogg, ID",
+    state: "ID",
+    mineral: "Lead",
+    era: "1885–1981",
+    depth: 6500,
+    status: "Closed",
+    visited: "2024-07-11",
+    lat: 47.5388, lng: -116.1264,
+    desc: `<p>The Coeur d'Alene Mining District in northern Idaho is one of the world's great silver-lead-zinc districts, producing more silver than any other district in U.S. history. The Bunker Hill Mine at its center was a colossus — 6,500 feet deep with over 150 miles of underground workings.</p><p>The district's history includes some of the most violent labor conflicts in American history, including the 1892 dynamiting of the Frisco Mill and the 1899 Bunker Hill explosion that led to federal martial law. It also left behind the Bunker Hill Superfund Site, one of the largest in the country, encompassing 21 square miles of contaminated soil and water.</p>`,
+    notes: "The mine itself is not accessible. The Bunker Hill smelter stack (visible for miles) was demolished in 1996. The area is worth visiting for Silver Valley history; the staff mine museum in Kellogg is excellent.",
+    photos: [
+      { caption: "Former Bunker Hill smelter site", placeholder: "🏭" },
+      { caption: "Galena ore specimens", placeholder: "⚫" }
+    ]
+  },
+  {
+    id: 10,
+    name: "Reed Gold Mine",
+    subtitle: "First U.S. Gold Discovery",
+    location: "Midland, NC",
+    state: "NC",
+    mineral: "Gold",
+    era: "1803–1912",
+    depth: 450,
+    status: "Open",
+    visited: "2022-05-28",
+    lat: 35.3565, lng: -80.4571,
+    desc: `<p>In 1799, John Reed's son Conrad found a curious yellow rock in Little Meadow Creek and used it as a doorstop for three years before a jeweler identified it as gold. The subsequent Reed Gold Mine became the site of the first documented gold find in the United States and sparked the nation's first gold rush — decades before California.</p><p>The state historic site preserves original underground workings and features guided underground tours that bring visitors through tunnels hand-drilled and blasted in the 19th century. The depth is modest compared to western mines but the historical significance is unmatched.</p>`,
+    notes: "Free admission. Underground tours offered several times daily. Gold panning is available for a small fee. Excellent for families and gold rush history enthusiasts.",
+    photos: [
+      { caption: "Underground tour, 19th-century drift", placeholder: "🕯" },
+      { caption: "Gold panning area at Little Meadow Creek", placeholder: "💛" }
+    ]
+  }
+];
+
+// ─── STATE ──────────────────────────────────────────────────────
+let sortCol = 'name';
+let sortDir = 1;
+let currentPage = 'home';
+let mainMap = null;
+let detailMapInst = null;
+
+// ─── INIT ───────────────────────────────────────────────────────
+function init() {
+  // Stats
+  const states = new Set(mines.map(m => m.state));
+  const minerals = new Set(mines.map(m => m.mineral));
+  document.getElementById('stat-total').textContent = mines.length;
+  document.getElementById('stat-states').textContent = states.size;
+  document.getElementById('stat-types').textContent = minerals.size;
+
+  // Populate filters
+  const mSel = document.getElementById('filter-mineral');
+  [...minerals].sort().forEach(m => {
+    const o = document.createElement('option'); o.value = m; o.textContent = m;
+    mSel.appendChild(o);
+  });
+  const sSel = document.getElementById('filter-state');
+  [...states].sort().forEach(s => {
+    const o = document.createElement('option'); o.value = s; o.textContent = s;
+    sSel.appendChild(o);
+  });
+
+  renderTable();
+}
+
+// ─── TABLE ───────────────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) sortDir = -sortDir;
+  else { sortCol = col; sortDir = 1; }
+  renderTable();
+}
+
+function renderTable() {
+  const query = document.getElementById('search-input').value.toLowerCase();
+  const filterMin = document.getElementById('filter-mineral').value;
+  const filterSt = document.getElementById('filter-state').value;
+  const filterStatus = document.getElementById('filter-status').value;
+
+  let data = mines.filter(m => {
+    if (filterMin && m.mineral !== filterMin) return false;
+    if (filterSt && m.state !== filterSt) return false;
+    if (filterStatus && m.status !== filterStatus) return false;
+    if (query) {
+      const str = `${m.name} ${m.location} ${m.mineral} ${m.state} ${m.subtitle}`.toLowerCase();
+      if (!str.includes(query)) return false;
+    }
+    return true;
+  });
+
+  data.sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return va < vb ? -sortDir : va > vb ? sortDir : 0;
+  });
+
+  document.getElementById('result-count').textContent = `Showing ${data.length} of ${mines.length} mines`;
+
+  // Update sort indicators
+  document.querySelectorAll('.mine-table thead th').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+  });
+  const cols = ['name','location','state','mineral','era','depth','status','visited'];
+  const idx = cols.indexOf(sortCol);
+  if (idx >= 0) {
+    const ths = document.querySelectorAll('.mine-table thead th');
+    ths[idx].classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  }
+
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  data.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.onclick = () => showDetail(m.id);
+    tr.innerHTML = `
+      <td class="mine-name-cell">${m.name}<small>${m.subtitle}</small></td>
+      <td class="mono">${m.location}</td>
+      <td class="mono">${m.state}</td>
+      <td><span class="badge badge-${mineralClass(m.mineral)}">${m.mineral}</span></td>
+      <td class="mono">${m.era}</td>
+      <td class="mono">${m.depth > 100 ? m.depth.toLocaleString() + ' ft' : m.depth + ' mi'}</td>
+      <td><span class="badge badge-${m.status.toLowerCase()}">${m.status}</span></td>
+      <td class="mono">${m.visited}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function mineralClass(m) {
+  const map = { Gold: 'gold', Silver: 'silver', Copper: 'copper', Iron: 'iron', Coal: 'coal', Mercury: 'mixed', Lead: 'lead', Zinc: 'zinc' };
+  return map[m] || 'iron';
+}
+
+// ─── DETAIL ─────────────────────────────────────────────────────
+function showDetail(id) {
+  const m = mines.find(x => x.id === id);
+  if (!m) return;
+
+  const photos = m.photos.map(p => `
+    <div class="photo-card">
+      <div class="photo-placeholder">${p.placeholder}</div>
+      <div class="photo-caption">${p.caption}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="mine-detail-header">
+      <div>
+        <div class="mine-detail-title">${m.name}</div>
+        <div style="color:var(--dust);font-size:0.95rem;margin-top:0.3rem;">${m.subtitle}</div>
+        <div class="mine-detail-meta">
+          <span class="badge badge-${mineralClass(m.mineral)}">${m.mineral}</span>
+          <span class="badge badge-${m.status.toLowerCase()}">${m.status}</span>
+          <span class="mono" style="font-size:0.8rem;">${m.location}</span>
+        </div>
+      </div>
+      <div class="mine-detail-sidebar">
+        <div class="sidebar-row"><div class="sidebar-label">State</div><div class="sidebar-val">${m.state}</div></div>
+        <div class="sidebar-row"><div class="sidebar-label">Era</div><div class="sidebar-val">${m.era}</div></div>
+        <div class="sidebar-row"><div class="sidebar-label">Max Depth</div><div class="sidebar-val">${m.depth > 100 ? m.depth.toLocaleString() + ' ft' : m.depth + ' mi tunnel'}</div></div>
+        <div class="sidebar-row"><div class="sidebar-label">Primary Mineral</div><div class="sidebar-val">${m.mineral}</div></div>
+        <div class="sidebar-row"><div class="sidebar-label">Last Visited</div><div class="sidebar-val">${m.visited}</div></div>
+        <div class="sidebar-row"><div class="sidebar-label">Coordinates</div><div class="sidebar-val mono" style="font-size:0.8rem;">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div></div>
+      </div>
+    </div>
+
+    <div class="mine-desc">${m.desc}</div>
+
+    <div class="notes-box">
+      <div class="notes-label">Field Notes</div>
+      ${m.notes}
+    </div>
+
+    <div class="section-title" style="font-size:1.3rem; margin-bottom:0.5rem;">Photos</div>
+    <div class="section-line"></div>
+    <div class="photo-grid">${photos}</div>
+
+    <div class="section-title" style="font-size:1.3rem; margin-bottom:0.5rem;">Location Map</div>
+    <div class="section-line"></div>
+    <div class="detail-map" id="detail-map-${m.id}"></div>
+  `;
+
+  showPage('detail');
+
+  setTimeout(() => {
+    if (detailMapInst) { detailMapInst.remove(); detailMapInst = null; }
+    const dm = L.map(`detail-map-${m.id}`, { scrollWheelZoom: false }).setView([m.lat, m.lng], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; CartoDB', maxZoom: 19
+    }).addTo(dm);
+    const icon = L.divIcon({ className: '', html: `<div style="width:16px;height:16px;background:#c8a84b;border:2px solid #8b6914;border-radius:50%;"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
+    L.marker([m.lat, m.lng], {icon}).addTo(dm).bindPopup(`<b>${m.name}</b><br>${m.location}`).openPopup();
+    detailMapInst = dm;
+  }, 100);
+}
+
+// ─── MAP PAGE ───────────────────────────────────────────────────
+function initMainMap() {
+  if (mainMap) return;
+  // Center of US
+  mainMap = L.map('map-container').setView([39.5, -100], 4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; CartoDB', maxZoom: 19
+  }).addTo(mainMap);
+
+  mines.forEach(m => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:14px;height:14px;background:#c8a84b;border:2px solid #8b6914;border-radius:50%;cursor:pointer;transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.5)'" onmouseout="this.style.transform='scale(1)'"></div>`,
+      iconSize:[14,14], iconAnchor:[7,7]
+    });
+    L.marker([m.lat, m.lng], {icon}).addTo(mainMap)
+      .bindPopup(`<div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"><b style="color:#c8a84b;">${m.name}</b><br>${m.location}<br><span style="color:#888;">${m.mineral} · ${m.era}</span><br><a onclick="showDetail(${m.id})" href="#" style="color:#c8a84b;">View details →</a></div>`);
+  });
+}
+
+// ─── NAVIGATION ─────────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+
+  document.getElementById(`page-${page}`).classList.add('active');
+  const navEl = document.getElementById(`nav-${page}`);
+  if (navEl) navEl.classList.add('active');
+  currentPage = page;
+
+  window.scrollTo(0, 0);
+
+  if (page === 'map') {
+    setTimeout(initMainMap, 100);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
